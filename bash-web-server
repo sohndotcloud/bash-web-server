@@ -77,6 +77,21 @@ list-directory () {
     echo '<hr>'
 }
 
+mime-type() {
+    local f=$1
+    local bname=${f##*/}
+    local ext=${bname##*.}
+    [[ $bname == "$ext" ]] && ext=
+
+    case "$ext" in 
+        html|htm) echo 'text/html';;
+        jpeg|jpg) echo 'image/jpeg';;
+        png) echo 'image/png';;
+        txt) echo 'text/plain';;
+        *) echo 'application/octet-stream';;
+    esac
+}
+
 urldecode() {
     # Usage: urldecode "string"
     : "${1//+/ }"
@@ -156,22 +171,24 @@ process-request() {
     path=${path:-.}
 
     # try to serve an index page
-    local totry=(
-        "$path",
-        "$path/index.html",
-        "$path/index.htm"
-    )
+    # local totry=(
+    #     "$path",
+    #     "$path/index.html",
+    #     "$path/index.htm"
+    # )
 
-    local _file _file
-    for try in "${totry[@]}"; do
-        if [[ -f $try ]]; then
-            file=$try
-            break
-        fi
-    done
+    # local _file file
+    # for try in "${totry[@]}"; do
+    #     if [[ -f $try ]]; then
+    #         file=$try
+    #         break
+    #     fi
+    # done
 
     if [[ -n $file ]]; then
         # static file was found
+        # local mime
+        # mime=$(mime-type "$file")
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
@@ -180,7 +197,7 @@ process-request() {
     elif [[ -d $path ]]; then
         # directory listing
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
-        printf 'Content-Type: text/plain\r\n' >&"$fd"
+        printf 'Content-Type: text/html\r\n' $mime>&"$fd"
         printf '\r\n' >&"$fd"
         list-directory "$path" >&"$fd"
     else 
