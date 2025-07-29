@@ -2,6 +2,7 @@
 
 ADDRESS='0.0.0.0'
 PORT='8080'
+DIR='.'
 
 fatal () {
     echo '[Fatal]' "$@" >&2
@@ -162,7 +163,7 @@ process-request() {
     )
 
     local _file _file
-    for try in "${totry[@]}; do
+    for try in "${totry[@]}"; do
         if [[ -f $try ]]; then
             file=$try
             break
@@ -174,7 +175,7 @@ process-request() {
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
-        cat "$path" >&"$fd"
+        cat "$file" >&"$fd"
         printf '\r\n' >&"$fd"
     elif [[ -d $path ]]; then
         # directory listing
@@ -192,6 +193,19 @@ process-request() {
 
 main() {
     enable accept || fatal 'failed to load accept'
+
+    local OPTIND OPTARG opt
+    while getopts 'b:p:d:' opt; do
+        case "$opt" in 
+            b) ADDRESS=$OPTARG;;
+            p) PORT=$OPTARG;;
+            d) DIR=$OPTARG;;
+            *) fatal "bad option";;
+        esac
+    done
+
+    cd "$DIR" || fatal "failed to move to $DIR"
+
     echo "listening on http://$ADDRESS:$PORT"
     local fd ip
     while true; do
