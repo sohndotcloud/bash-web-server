@@ -1,0 +1,23 @@
+
+
+normalize-path() {
+    local path=/$1
+
+    local -a parts
+    local -a out=()
+    IFS='/' read -r -a parts <<< "$path"
+    for part in "${parts[@]}"; do
+        case "$part" in
+            '') ;;
+            '.') ;;
+            '..') unset 'out[-1]' 2>/dev/null;;
+            *) out+=("$part");;
+        esac
+    done
+    
+    local s
+    s=$(IFS=/;  echo "${out[*]}")
+    echo "/$s"
+}
+
+normalize-path ../../hello/you/are/here/../..

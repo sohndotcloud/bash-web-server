@@ -7,15 +7,6 @@ fatal () {
     echo '[Fatal]' "$@" >&2
 }
 
-#! /bin/bash
-
-s="GET /foo.txt HTTP/1.1
-Host: localhost:8080
-User-Agent: curl/8.5.0
-Accept: */*"
-
-
-
 parse-request() {
     declare -gA REQ_INFO=()
     declare -gA REQ_HEADERS=()
@@ -54,10 +45,85 @@ parse-request() {
     done
 }
 
+html-encode() {
+    local s=$1
+
+    s=${s//&/&amp;}
+    s=${s//</&lt;}
+    s=${s//>/&gt;}
+    s=${s//\"/&quot;}
+    s=${s//\'/&apos;}
+
+    echo "$s"
+
+}
+
+list-directory () {
+    local d=$1
+
+    shopt -s nullglob dotglob    
+    echo '<h1>Directory Listing</h1>'
+    echo "<h2>Directory: $(html-encode "$d")</h2>"
+    echo '<hr>'
+    echo '<ul>'
+    for f in .. "$d"/*; do
+        f=${f##*/}
+        printf '<li><a href="%s">%s</a></li>\n' \
+                "$(urlencode "$f")" \
+                "$(html-encode "$f")"
+    done
+    echo '</ul>'
+    echo '<hr>'
+}
+
 urldecode() {
     # Usage: urldecode "string"
     : "${1//+/ }"
     printf '%b\n' "${_//%/\\x}"
+}
+
+urldecode() {
+    # Usage: urldecode "string"
+    : "${1//+/ }"
+    printf '%b\n' "${_//%/\\x}"
+}
+
+urlencode() {
+    # Usage: urlencode "string"
+    local LC_ALL=C
+    for (( i = 0; i < ${#1}; i++ )); do
+        : "${1:i:1}"
+        case "$_" in
+            [a-zA-Z0-9.~_-])
+                printf '%s' "$_"
+            ;;
+
+            *)
+                printf '%%%02X' "'$_"
+            ;;
+        esac
+    done
+    printf '\n'
+}
+
+normalize-path() {
+    local path=/$1
+
+    local -a parts
+    local -a out=()
+    IFS='/' read -r -a parts <<< "$path"
+    for part in "${parts[@]}"; do
+        case "$part" in
+            '') ;;
+            '.') ;;
+            '..') unset 'out[-1]' 2>/dev/null;;
+            *) out+=("$part");;
+        esac
+    done
+    
+    local s
+    s=$(IFS=/;  echo "${out[*]}")
+    echo "/$s"
 }
 
 process-request() {
@@ -71,21 +137,34 @@ process-request() {
     [[ ${REQ_INFO[path]} == /* ]] || fatal 'path must be absolute'
 
     echo "${REQ_INFO[method]} ${REQ_INFO[path]}"
+    path=${path:1}
 
     # removing beginning slash
     local path="${REQ_INFO[path]}"
-    path=${path:1}
 
     # query parsing
     local query
     IFS='?' read -r path query <<< "$path"
     path=$(urldecode "$path")
+
+    # normalizing path
+    path=$(normalize-path "$path")
+    path=${path:1}
+
+    # handle empty path
+    path=${path:-.}
+
     if [[ -f $path ]]; then
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
         cat "$path" >&"$fd"
         printf '\r\n' >&"$fd"
+    elif [[ -d $path ]]; then
+        printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
+        printf 'Content-Type: text/plain\r\n' >&"$fd"
+        printf '\r\n' >&"$fd"
+        list-directory "$path" >&"$fd"
     else 
         printf 'HTTP/1.1 404 Not Found\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
