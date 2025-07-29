@@ -1,0 +1,28 @@
+#! /bin/bash
+
+ADDRESS='0.0.0.0'
+PORT='8080'
+
+fatal () {
+    echo '[Fatal]' "$@" >&2
+}
+
+enable accept || fatal 'failed to load accept'
+
+accept -b "$ADDRESS" -v fd -r ip $PORT
+
+while read -r -u "$fd" line; do
+    line=${line%$'\r'}
+    # Done processing headers
+    if [[ -z $line ]]; then
+        break
+    fi
+
+    echo "Data: $line"
+done
+
+printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
+printf 'Content-Type: text/plain\r\n' >&"$fd"
+printf '\r\n' >&"$fd"
+
+exec {fd}>&-
