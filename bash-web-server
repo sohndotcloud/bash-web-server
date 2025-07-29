@@ -54,6 +54,12 @@ parse-request() {
     done
 }
 
+urldecode() {
+    # Usage: urldecode "string"
+    : "${1//+/ }"
+    printf '%b\n' "${_//%/\\x}"
+}
+
 process-request() {
     local fd=$1
 
@@ -66,13 +72,20 @@ process-request() {
 
     echo "${REQ_INFO[method]} ${REQ_INFO[path]}"
 
+    # removing beginning slash
     local path="${REQ_INFO[path]}"
     path=${path:1}
+
+    # query parsing
+    local query
+    IFS='?' read -r path query <<< "$path"
+    path=$(urldecode "$path")
     if [[ -f $path ]]; then
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
         cat "$path" >&"$fd"
+        printf '\r\n' >&"$fd"
     else 
         printf 'HTTP/1.1 404 Not Found\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
