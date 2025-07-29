@@ -88,6 +88,9 @@ mime-type() {
         jpeg|jpg) echo 'image/jpeg';;
         png) echo 'image/png';;
         txt) echo 'text/plain';;
+        css) echo 'text/css';;
+        js) echo 'text/javascript';;
+        json) echo 'application/json';;
         *) echo 'application/octet-stream';;
     esac
 }
@@ -171,26 +174,24 @@ process-request() {
     path=${path:-.}
 
     # try to serve an index page
-    # local totry=(
-    #     "$path",
-    #     "$path/index.html",
-    #     "$path/index.htm"
-    # )
+    local totry=(
+        "$path",
+        "$path/index.html"
+        "$path/index.htm"
+    )
 
-    # local _file file
-    # for try in "${totry[@]}"; do
-    #     if [[ -f $try ]]; then
-    #         file=$try
-    #         break
-    #     fi
-    # done
+    local try file
+    for try in "${totry[@]}"; do
+        if [[ -f $try ]]; then
+            file=$try
+            break
+        fi
+    done
 
     if [[ -n $file ]]; then
-        # static file was found
-        # local mime
-        # mime=$(mime-type "$file")
+        mime=$(mime-type "$file")
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
-        printf 'Content-Type: text/plain\r\n' >&"$fd"
+        printf 'Content-Type: %s\r\n' "$mime" >&"$fd"
         printf '\r\n' >&"$fd"
         cat "$file" >&"$fd"
         printf '\r\n' >&"$fd"
@@ -205,7 +206,6 @@ process-request() {
         printf 'HTTP/1.1 404 Not Found\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
     fi
-    exec {fd}>&-
 }
 
 main() {
@@ -227,7 +227,9 @@ main() {
     local fd ip
     while true; do
         accept -b "$ADDRESS" -v fd -r ip $PORT || fatal 'failed to read socket'
-        process-request "$fd"
+        
+        process-request "$fd" &
+        exec {fd}>&-
     done
 }
 
