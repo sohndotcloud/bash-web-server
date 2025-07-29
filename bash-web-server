@@ -154,18 +154,36 @@ process-request() {
     # handle empty path
     path=${path:-.}
 
-    if [[ -f $path ]]; then
+    # try to serve an index page
+    local totry=(
+        "$path",
+        "$path/index.html",
+        "$path/index.htm"
+    )
+
+    local _file _file
+    for try in "${totry[@]}; do
+        if [[ -f $try ]]; then
+            file=$try
+            break
+        fi
+    done
+
+    if [[ -n $file ]]; then
+        # static file was found
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
         cat "$path" >&"$fd"
         printf '\r\n' >&"$fd"
     elif [[ -d $path ]]; then
+        # directory listing
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
         printf 'Content-Type: text/plain\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
         list-directory "$path" >&"$fd"
     else 
+        # nothing was found
         printf 'HTTP/1.1 404 Not Found\r\n' >&"$fd"
         printf '\r\n' >&"$fd"
     fi
