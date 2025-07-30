@@ -9,11 +9,13 @@ fatal () {
 }
 
 parse-request() {
+    # Define global array of http request
     declare -gA REQ_INFO=()
     declare -gA REQ_HEADERS=()
 
     local state='status'
     local line
+    # Start parsing request based on HTTP/1.1 Specification
     while read -r line; do
         line=${line%$'\r'}
         case "$state" in
@@ -34,8 +36,10 @@ parse-request() {
                         break
                     fi
                     local key value
+                    # Use IFS delimiter ':' to parse line
                     IFS=: read -r key value <<< "$line"
                     key=${key,,} 
+                    # Grab value and delete trailing spaces
                     value=${value# *}
                     REQ_HEADERS[$key]=$value
                     ;;
@@ -49,6 +53,7 @@ parse-request() {
 html-encode() {
     local s=$1
 
+    # Encode special characters
     s=${s//&/&amp;}
     s=${s//</&lt;}
     s=${s//>/&gt;}
@@ -60,13 +65,17 @@ html-encode() {
 }
 
 list-directory () {
+    # Pass in directory
     local d=$1
 
+    # Find all files and exclude '*'
     shopt -s nullglob dotglob    
     echo '<h1>Directory Listing</h1>'
     echo "<h2>Directory: $(html-encode "$d")</h2>"
     echo '<hr>'
     echo '<ul>'
+
+    # Parse all file names
     for f in .. "$d"/*; do
         f=${f##*/}
         printf '<li><a href="%s">%s</a></li>\n' \
@@ -78,11 +87,15 @@ list-directory () {
 }
 
 mime-type() {
+    # Parse filename and find extension
     local f=$1
+    # File name
     local bname=${f##*/}
+    # Remove file name and grab everything after '.'
     local ext=${bname##*.}
     [[ $bname == "$ext" ]] && ext=
 
+    # Content-type
     case "$ext" in 
         html|htm) echo 'text/html';;
         jpeg|jpg) echo 'image/jpeg';;
@@ -130,6 +143,7 @@ normalize-path() {
 
     local -a parts
     local -a out=()
+    # Use delimiter to parse path and pop the last directory for '..'
     IFS='/' read -r -a parts <<< "$path"
     for part in "${parts[@]}"; do
         case "$part" in
@@ -188,6 +202,7 @@ process-request() {
         fi
     done
 
+    # File handling, directory handling
     if [[ -n $file ]]; then
         mime=$(mime-type "$file")
         printf 'HTTP/1.1 200 OK\r\n' >&"$fd"
@@ -209,8 +224,12 @@ process-request() {
 }
 
 main() {
+    # Requires bash-builtins package 'apt install bash-builtins'
+    # Socket reading program
     enable accept || fatal 'failed to load accept'
 
+    # Add customized address, port, and directory with flags
+    # ./bash-web-server -b 0.0.0.0 -p 9000 -d ..
     local OPTIND OPTARG opt
     while getopts 'b:p:d:' opt; do
         case "$opt" in 
@@ -225,10 +244,13 @@ main() {
 
     echo "listening on http://$ADDRESS:$PORT"
     local fd ip
+    # Store file descriptor number in a var with '-v filedescriptor'
     while true; do
         accept -b "$ADDRESS" -v fd -r ip $PORT || fatal 'failed to read socket'
         
+        # Create a forked process and run in background
         process-request "$fd" &
+        # Kill current process and let child process parse the request
         exec {fd}>&-
     done
 }
